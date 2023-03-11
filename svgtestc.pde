@@ -7,7 +7,7 @@ int[][] domCount;
 
 PImage test;
 
-String imageToLoad = "t1.png";
+String imageToLoad = "t3.png";
 
 void setup(){
   size(1000, 1000);
@@ -15,7 +15,14 @@ void setup(){
   
   noSmooth();
   background(0);
-  generateSVG(imageToLoad);
+  
+  File f = new File(dataPath(""));
+  for(var file:f.listFiles()){
+    if(file.getName().contains(".png")){
+      println(file.getName());
+      generateSVG(file.getAbsolutePath());
+    }
+  }
   
   //todo:
   // add contour cases for image edges within cells [x]
@@ -37,8 +44,7 @@ void draw(){
 void generateSVG(String imageloc){
   test = loadImage(imageloc);
   test.loadPixels();
-  noSmooth();
-  background(0);
+
   corners = new MCorner[test.width][test.height];
   center = new color[corners.length-1][corners[0].length-1];
   domCount = new int[center.length][center[0].length];
@@ -59,26 +65,33 @@ void generateSVG(String imageloc){
       domCount[x][y] = countMostFrequentColor(quad);
     }
   }
-  float scl = 8;
+  float scl = 1;
   //drawSquares(scl,corners,test,center,domCount);
   fill(0,100);
   rect(0,0,width,height);
   
   var cells = generateCells(scl,corners,test,center,domCount);
-  
-  beginRecord(SVG,imageloc.split("\\.")[0]+".svg");
+  var dvd = imageloc.split("\\\\");
+  PGraphics svg = createGraphics(test.width, test.height, SVG, "output/"+dvd[dvd.length-1].split("\\.")[0]+".svg");
+  svg.beginDraw();
+  svg.noStroke();
   boolean[][] mapped = new boolean[test.width][test.height];
   for (int x = 0; x<test.width-1; x++) {
     for (int y = 0; y<test.height-1; y++) {
       if(!mapped[x][y] && cells[x][y].hasRoute && alpha(test.pixels[x+y*test.width])>0){
         var contour = getContour(cells,x,y,test.pixels[x+y*test.width],mapped);
         if(contour!=null){
-           contour.draw(scl);
+           contour.draw(svg,scl);
+           contour.draw(g,scl);
+           
         }
       }
     }
   }
-  endRecord();
+  svg.dispose();
+  svg.endDraw();
+  //image(svg,0,0);
+  translate(test.width,0);
 }
 
 
@@ -143,7 +156,28 @@ Contour getContour(MSCell[][] cells, int x,int y, color c, boolean[][] mapped){
     }
     l++;
   }
-  return new Contour(contour,c);
+  
+  ArrayList<PVector> lcontour = new ArrayList();
+  for(int i = 0;i<contour.size();i++){
+    PVector prev = contour.get((i+contour.size()-1)%contour.size());
+    PVector curr = contour.get(i);
+    if(prev.dist(curr)<0.01 ){
+      continue;
+    }
+    lcontour.add(contour.get(i));
+  }
+  
+  ArrayList<PVector> decimatedcontour = new ArrayList();
+  for(int i = 0;i<lcontour.size();i++){
+    PVector prev = lcontour.get((i+lcontour.size()-1)%lcontour.size());
+    PVector curr = lcontour.get(i);
+    PVector next = lcontour.get((i+1)%lcontour.size());
+    if(PVector.sub(curr,prev).normalize().dot(PVector.sub(next,curr).normalize()) < 0.9){
+      decimatedcontour.add(lcontour.get(i));
+    }
+  }
+  
+  return new Contour(decimatedcontour,c);
 
 }
 
@@ -171,14 +205,14 @@ class Contour{
     this.c=c;
   }
   
-  void draw(float scl){
-    fill(c);
-    noStroke();
-    beginShape(POLYGON);
+  void draw(PGraphics pg, float scl){
+    pg.fill(c);
+    pg.noStroke();
+    pg.beginShape(POLYGON);
     
     for(var v:contour){
-      vertex(v.x*scl,v.y*scl);
+      pg.vertex(v.x*scl,v.y*scl);
     }
-    endShape(CLOSE);
+    pg.endShape(CLOSE);
   }
 }
