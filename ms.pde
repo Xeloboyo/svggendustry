@@ -172,7 +172,7 @@ MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] 
         int back = (z+3)%4;
         int forw = (z+1)%4;
         // opposite sides so geometry goes thru center. thus center doesnt have a color
-        if(m.hasVert(back) && !m.hasVert(x) && m.hasVert(forw)){
+        if(m.hasVert(back) && !m.hasVert(z) && m.hasVert(forw)){
           hasCenter = false;
         }
       }
@@ -185,6 +185,7 @@ MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] 
       if (quad[0].vpos[0]<0 && quad[1].vpos[1]<0 && quad[2].vpos[2]<0 && quad[3].vpos[3]<0) {
         //cell is filled square
       } else{
+
         for (int z = 0; z<4; z++) {
           int back = (z+3)%4;
           int forw = (z+1)%4;

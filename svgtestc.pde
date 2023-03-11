@@ -7,6 +7,8 @@ PImage test;
 
 void setup(){
   size(800, 800);
+  try{
+  
   test = loadImage("t2.png");
   test.loadPixels();
   noSmooth();
@@ -43,6 +45,11 @@ void setup(){
         // - some kind of color flood approach?
      // - finally draw clean polygon with appropriate backward contours for holes
    // export to svg
+   
+   
+  }catch(Exception e){
+    e.printStackTrace(System.err);
+  }
 }
 
 void draw(){
