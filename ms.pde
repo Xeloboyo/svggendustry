@@ -6,8 +6,10 @@ int[][] dir =  {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
 int[][] corner =  {{1, 0}, {1, 1}, {0, 1}, {0, 0}};
 
 class BorderedImage {
+  PImage p ;
   color[][] pixels;
   BorderedImage(PImage p) {
+    this.p=p;
     pixels = new color[p.width+2][p.height+2];
     for (int i = 0; i<p.pixels.length; i++) {
       int x = i % p.width;
@@ -84,10 +86,13 @@ route──►│  ├─►?    ┌─────┴───
 */
 //clockwise route of contour thru this cell
   int[] route;
+  PVector[][] routeStops = new PVector[4][];
   color centerFill;
   boolean hasCenterFill;
+  PVector centerPos;
   float px, py;
   int x,y;
+  boolean hasRoute = true;
   MSCell(MCorner[] corners){
     this.corners = new MCorner[4];
     for(int i = 0;i<4;i++){
@@ -95,8 +100,8 @@ route──►│  ├─►?    ┌─────┴───
     }
     x = corners[0].x;
     y = corners[0].y;
-    px = x+0.5f;
-    py = y+0.5f;
+    px = x+1f;
+    py = y+1f;
     route = new int[]{-1,-1,-1,-1};
   }
   
@@ -104,12 +109,27 @@ route──►│  ├─►?    ┌─────┴───
   boolean hasVert(int i){
     return corners[i].vpos[i]>0;
   }
+  
+  PVector getVert(int d){
+    d = (d+2)%4;
+    return new PVector(px+dir[d][0]*0.5f,py+dir[d][1]*0.5f);
+  }
+  PVector getAntiVert(int d){
+    return new PVector(px+dir[d][0]*0.5f,py+dir[d][1]*0.5f);
+  }
 }
+
+PVector getVert(int x,int y,int d){
+  d = (d+2)%4;
+  return new PVector(x+0.5+dir[d][0]*0.5f,y+0.5+dir[d][1]*0.5f);
+}
+
 class MCorner {
   int x, y;
   float[] vpos = new float[4];
   color c;
   boolean isEmpty = true;
+  boolean isCorner = false;
 
   public MCorner(BorderedImage p, int x, int y) {
     vpos[0]=-1;
@@ -132,9 +152,23 @@ class MCorner {
         isEmpty = false;
       }
     }
+    if((x==0 && y == 0) || (x==p.p.width-1 && y == 0) || (x==p.p.width-1 && y == p.p.height-1) || (x==0 && y == p.p.height-1)){
+      isCorner = true;
+    }
     
   }
 }
+
+boolean inBounds(int x,int y,int d,Object[][] grid){
+  x += dir[d][0];
+  y += dir[d][1];
+  return (x>=0 && y>=0 && x<grid.length && y<grid[x].length);
+}
+
+boolean inBounds(int x,int y,Object[][] grid){
+  return (x>=0 && y>=0 && x<grid.length && y<grid[x].length);
+}
+
 MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] center, int domCount[][]) {
   MSCell[][] cells = new MSCell[corners.length-1][corners[0].length-1];
   MCorner quad[] = new MCorner[4];
@@ -158,6 +192,7 @@ MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] 
  
  
  */
+ ArrayList<PVector> detours= new ArrayList();
   for (int x = 0; x<test.width-1; x++) {
     for (int y = 0; y<test.height-1; y++) {
       for (int z = 0; z<4; z++) {
@@ -176,6 +211,9 @@ MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] 
           hasCenter = false;
         }
       }
+      if (domCount[x][y] == 1) {
+        hasCenter = false;
+      }
       m.hasCenterFill = false;
       if(hasCenter){
         m.hasCenterFill = true;
@@ -184,59 +222,212 @@ MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] 
       cells[x][y] = m;
       if (quad[0].vpos[0]<0 && quad[1].vpos[1]<0 && quad[2].vpos[2]<0 && quad[3].vpos[3]<0) {
         //cell is filled square
+        m.hasRoute = false;
       } else{
-
-        for (int z = 0; z<4; z++) {
-          int back = (z+3)%4;
-          int forw = (z+1)%4;
-          color pivotColor = quad[z].c;
-          //corner
-          if(m.hasVert(back) && m.hasVert(z)){
-            if(m.hasCenterFill && m.centerFill == pivotColor && quad[(z+2)%4].c == pivotColor){
-              /*
-                    ┌─┐            ┌────┐
-                    │z├───────────►│forw│
-                    └─┘            └────┘
-                     ▲
-                     │    ┌──────┐
-              ──z──► ├───►│center│
-                     │    │fill  │
-                     │    └──┬───┘
-                  ┌──┴─┐     │
-                  │back│     │
-                  └────┘     ▼
-                            forw
-                             │
-                             ▼
-              */
-              m.route[z] = forw;
-            }else{
-              /*
-                            ▲
-                            │
-                    ┌─┐    back    ┌────┐
-                    │z├───────────►│forw│
-                    └─┘     ▲      └────┘
-                     ▲      │
-                     │      │
-              ──z──► ├──────┘
-                     │
-                     │
-                  ┌──┴─┐
-                  │back│
-                  └────┘
-              */
-              m.route[z] = back;
+        calcRoute(m,cells);
+      }
+    }
+  }
+  
+  for (int x = 0; x<test.width-1; x++) {
+    for (int y = 0; y<test.height-1; y++) {
+      for (int z = 0; z<4; z++) {
+        int forw = (z+3)%4;
+        quad[z] = corners[x+corner[forw][0]][y+corner[forw][1]];
+      }
+      MSCell m = cells[x][y];
+      if (quad[0].vpos[0]<0 && quad[1].vpos[1]<0 && quad[2].vpos[2]<0 && quad[3].vpos[3]<0) {
+        //cell is filled square
+      } else{
+         for (int z = 0; z<4; z++) {
+          final int cz = z;
+          final int back = (z+3)%4;
+          final int forw = (z+1)%4;
+          final int invz = (z+2)%4;
+          if(!m.hasCenterFill){
+            if(m.route[z] == forw && domCount[x][y] == 1){
+              boolean bottom = check(x,y,invz, c->{return c.route[back] == cz && c.hasCenterFill;},cells);
+              boolean side =  check(x,y,forw, c->{return c.route[forw] == invz && c.hasCenterFill;},cells);
+              if(side && bottom){
+                m.centerFill = quad[back].c;
+                m.hasCenterFill = true;
+              }
+              
+            }else if(m.route[z] == z){
+              if(m.hasVert(z)){
+                boolean top =    check(x,y,z,    c->{return c.route[cz] == forw && c.hasCenterFill;},cells);
+                boolean bottom = check(x,y,invz, c->{return c.route[back] == cz && c.hasCenterFill;},cells);
+                boolean side =   check(x,y,back, c->{return c.route[cz] == forw;},cells) || check(x,y,back, c->{return c.route[back] == cz;},cells);
+                if((top && bottom)||(side && top)||(side && bottom)){
+                  m.centerFill = quad[back].c;
+                  m.hasCenterFill = true;
+                }
+              }
+              else{
+                boolean top =    check(x,y,z,    c->{return c.route[cz] == forw && c.hasCenterFill;},cells);
+                boolean bottom = check(x,y,invz, c->{return c.route[back] == cz && c.hasCenterFill;},cells);
+                if((top && bottom)){
+                  m.centerFill = quad[back].c;
+                  m.hasCenterFill = true;
+                }
+              }
             }
-          }else if(m.hasVert(back) && m.hasVert(forw)){
-            m.route[z] = z;
           }
+          if(!m.hasCenterFill){
+            boolean recentered = true;
+            /*
+            edge case
+                 /
+                /
+            ___/____
+             
+            */
+            if(m.route[z] == forw){
+              if(m.route[back] == back
+                && check(x,y,forw, c->{return c.route[back] == back;},cells)
+                && check(x,y,invz, c->{return c.route[back] == cz;},cells)){
+                  recentered = false;
+                  m.centerPos = m.getAntiVert(back);
+              }else if(m.route[invz] == invz
+                && check(x,y,z, c->{return c.route[invz] == invz;},cells)
+                && check(x,y,forw, c->{return c.route[cz] == back;},cells)){
+                  recentered = false;
+                  m.centerPos =(m.getAntiVert(z));
+              }else if(m.route[invz] == invz
+                && check(x,y,invz, c->{return c.route[cz] == cz;},cells)
+                && check(x,y,forw, c->{return c.route[forw] == invz;},cells)){
+                  recentered = false;
+                  m.centerPos =(m.getAntiVert(z));
+              }  
+            }
+            
+            
+            
+            if(m.centerPos==null){
+               m.centerPos = (new PVector(m.px,m.py));
+            }
+            
+          }
+        }
+        for (int z = 0; z<4; z++) {
+          final int cz = z;
+          final int back = (z+3)%4;
+          final int forw = (z+1)%4;
+          final int invz = (z+2)%4;
+          detours.clear();
+          if(!m.hasCenterFill){
+            detours.add(m.centerPos);
+          }else{
+            //route goes clockwise
+            if(m.route[z] == forw){
+              if(m.centerFill == quad[back].c && m.hasVert(back)){
+                println(m);
+                detours.add(m.getAntiVert(back));
+                if(m.corners[forw].isCorner){
+                 detours.add(new PVector(m.corners[forw].x+0.5f,m.corners[forw].y+0.5f));
+                }
+                detours.add(m.getAntiVert(z));
+              }
+            }else if(m.route[z] == z){
+              if(m.hasCenterFill){
+                detours.add(m.getAntiVert(m.centerFill==quad[back].c?back:forw));
+              }
+            }
+          }
+          m.routeStops[z] = detours.toArray(new PVector[]{});
         }
       }
     }
   }
   return cells;
 }
+
+boolean check(int x,int y,int d,Boolf<MSCell> cond, MSCell[][] grid){
+  if(!inBounds(x,y,d,grid)){
+    return false;
+  }
+  return cond.check(grid[x+dir[d][0]][y+dir[d][1]]);
+}
+
+boolean check(int x,int y,Boolf<MSCell> cond, MSCell[][] grid){
+  if(!inBounds(x,y,grid)){
+    return false;
+  }
+  return cond.check(grid[x][y]);
+}
+
+interface Boolf<T>{
+  public boolean check(T t);
+}
+
+
+void calcRoute(MSCell m,MSCell[][] cells){
+  var quad = m.corners;
+  for (int z = 0; z<4; z++) {
+    int back = (z+3)%4;
+    int forw = (z+1)%4;
+    int invz = (z+2)%4;
+    color pivotColor = quad[z].c;
+    //corner
+    if(quad[back].c == quad[invz].c && m.hasVert(back)  && m.hasVert(forw)){
+      m.route[z] = z;
+    }else
+    if(m.hasVert(invz) && m.hasVert(back)){
+      if(!(m.hasCenterFill && m.centerFill == quad[back].c && m.centerFill == quad[forw].c)){ // if not cutting across a central block of color
+        m.route[z] = forw;
+      }else{
+        m.route[z] = back;
+        if(!inBounds(m.x,m.y,back,cells)){
+          m.route[z] = forw;
+        }
+      }
+      
+    }else
+    if(m.hasVert(back) && m.hasVert(z)){
+      if(m.hasCenterFill && m.centerFill == pivotColor && quad[(z+2)%4].c == pivotColor){
+        /*
+              ┌─┐            ┌────┐
+              │z├───────────►│forw│
+              └─┘            └────┘
+               ▲
+               │    ┌──────┐
+        ──z──► ├───►│center│
+               │    │fill  │
+               │    └──┬───┘
+            ┌──┴─┐     │
+            │back│     │
+            └────┘     ▼
+                      forw
+                       │
+                       ▼
+        */
+        m.route[z] = forw;
+        //m.route[(forw + 2)%4] = (z + 2)%4;
+      }else{
+        /*
+                      ▲
+                      │
+              ┌─┐    back    ┌────┐
+              │z├───────────►│forw│
+              └─┘     ▲      └────┘
+               ▲      │
+               │      │
+        ──z──► ├──────┘
+               │
+               │
+            ┌──┴─┐
+            │back│
+            └────┘
+        */
+        m.route[z] = back;
+        //m.route[forw] = (z + 2)%4;
+      }
+    }else if(m.hasVert(back) && m.hasVert(forw)){
+      m.route[z] = z;
+    }
+  }
+}
+
 void drawSquares(float scl, MCorner[][] corners, PImage test, color[][] center, int domCount[][]) {
   strokeWeight(scl/8);
   for (int i = 0; i<test.pixels.length; i++) {
@@ -255,7 +446,7 @@ void drawSquares(float scl, MCorner[][] corners, PImage test, color[][] center, 
     }
   }
   noStroke();
-
+stroke(0);
   MCorner quad[] = new MCorner[4];
   for (int x = 0; x<test.width-1; x++) {
     for (int y = 0; y<test.height-1; y++) {
