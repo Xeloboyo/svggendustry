@@ -7,7 +7,7 @@ int[][] domCount;
 
 PImage test;
 
-String imageToLoad = "t3.png";
+String imageToLoad = "t4.png";
 
 void setup(){
   size(1000, 1000);
@@ -17,8 +17,6 @@ void setup(){
   background(0);
   generateSVG(imageToLoad);
   
-  
-  //boolean[][] cells
   //todo:
   // add contour cases for image edges within cells [x]
   // generate contour from cells [x]
@@ -61,7 +59,7 @@ void generateSVG(String imageloc){
       domCount[x][y] = countMostFrequentColor(quad);
     }
   }
-  float scl = 10;
+  float scl = 8;
   //drawSquares(scl,corners,test,center,domCount);
   fill(0,100);
   rect(0,0,width,height);
@@ -72,7 +70,7 @@ void generateSVG(String imageloc){
   boolean[][] mapped = new boolean[test.width][test.height];
   for (int x = 0; x<test.width-1; x++) {
     for (int y = 0; y<test.height-1; y++) {
-      if(!mapped[x][y] && cells[x][y].hasRoute){
+      if(!mapped[x][y] && cells[x][y].hasRoute && alpha(test.pixels[x+y*test.width])>0){
         var contour = getContour(cells,x,y,test.pixels[x+y*test.width],mapped);
         if(contour!=null){
            contour.draw(scl);
