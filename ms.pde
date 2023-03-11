@@ -321,7 +321,6 @@ MSCell[][] generateCells(float scl, MCorner[][] corners, PImage test, color[][] 
             //route goes clockwise
             if(m.route[z] == forw){
               if(m.centerFill == quad[back].c && m.hasVert(back)){
-                println(m);
                 detours.add(m.getAntiVert(back));
                 if(m.corners[forw].isCorner){
                  detours.add(new PVector(m.corners[forw].x+0.5f,m.corners[forw].y+0.5f));
