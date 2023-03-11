@@ -7,7 +7,7 @@ int[][] domCount;
 
 PImage test;
 
-String imageToLoad = "t4.png";
+String imageToLoad = "t1.png";
 
 void setup(){
   size(1000, 1000);
@@ -106,8 +106,8 @@ Contour getContour(MSCell[][] cells, int x,int y, color c, boolean[][] mapped){
     }
     
     for(int i = 0;i<4;i++){
-      if(origin.corners[i].c == c){
-        mapped[origin.corners[i].x][origin.corners[i].y] = true;
+      if(current.corners[i].c == c){
+        mapped[current.corners[i].x][current.corners[i].y] = true;
       }
     }
     cdir = current.route[cdir];
